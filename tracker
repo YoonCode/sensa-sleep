@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sensa Sleep · 21일 루틴 트래커</title>
+<style>
+  /* ──────────────────────────────────────────────────────────
+     디자인 시스템 (index.html, sound-player.html과 동일)
+  ────────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #FAFAF8;
+    --surface:   #F3F1EC;
+    --border:    #E2DFD8;
+    --text:      #1A1A18;
+    --muted:     #6B6860;
+    --hint:      #A09E98;
+    --amber:     #BA7517;
+    --amber-bg:  #FAEEDA;
+    --amber-lt:  #FDF5E8;
+    --amber-dk:  #854F0B;
+    --teal:      #0F6E56;
+    --teal-bg:   #E1F5EE;
+    --purple:    #534AB7;
+    --purple-bg: #EEEDFE;
+    --green:     #3B6D11;
+    --green-bg:  #EAF3DE;
+    --coral:     #993C1D;
+    --coral-bg:  #FAECE7;
+  }
+
+  body {
+    font-family: -apple-system, "Apple SD Gothic Neo", "Pretendard", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    min-height: 100vh;
+  }
+
+  .wrap {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 40px 20px 100px;
+  }
+
+  h1 { font-size: 22px; font-weight: 600; line-height: 1.35; margin-bottom: 8px; }
+  h2 { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+  p  { font-size: 14px; color: var(--muted); line-height: 1.7; }
+
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 3px 9px;
+    border-radius: 20px;
+    margin-bottom: 14px;
+  }
+  .badge-amber  { background: var(--amber-bg);  color: var(--amber); }
+  .badge-teal   { background: var(--teal-bg);   color: var(--teal); }
+  .badge-green  { background: var(--green-bg);  color: var(--green); }
+  .badge-purple { background: var(--purple-bg); color: var(--purple); }
+
+  .divider { height: 1px; background: var(--border); margin: 24px 0; }
+  .fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; } }
+
+  /* ── 카드 ──────────────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 10px;
+  }
+  .card-white {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 10px;
+  }
+
+  /* ── 버튼 ──────────────────────────────────────────────── */
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    background: var(--amber);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    margin-top: 12px;
+    text-align: center;
+  }
+  .btn:hover  { opacity: 0.88; }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { background: var(--surface); opacity: 1; }
+
+  /* ── 21일 달력 그리드 ──────────────────────────────────── */
+  /*
+     7열 × 3행 그리드로 21일을 표현합니다.
+     각 셀은 클릭 가능한 날짜 선택 버튼입니다.
+     완료된 날(오늘 세션에서 완료 처리한 날)은 초록으로 채워집니다.
+  */
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    margin: 14px 0;
+  }
+
+  .day-cell {
+    aspect-ratio: 1;              /* 정사각형 유지 */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    transition: all 0.15s;
+    position: relative;
+    gap: 2px;
+  }
+  .day-cell:hover { border-color: var(--amber); color: var(--amber); }
+
+  /* 선택된 날짜 */
+  .day-cell.selected {
+    background: var(--amber-bg);
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  /* 이 세션에서 완료 처리한 날 */
+  .day-cell.done {
+    background: var(--green-bg);
+    border-color: var(--green);
+    color: var(--green);
+  }
+
+  /* 완료 날짜의 체크 표시 */
+  .day-cell.done::after {
+    content: "✓";
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--green);
+    line-height: 1;
+  }
+
+  /* 날짜 숫자 */
+  .day-num {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  /* ── 단계별 레이블 (1~7일, 8~14일, 15~21일) ────────────── */
+  .phase-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--hint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+    margin-top: 14px;
+  }
+
+  /* ── 체크리스트 섹션 ───────────────────────────────────── */
+  /*
+     섹션은 수면 유형 × 하루의 시간대로 구성됩니다.
+     저녁 루틴 / 수면 환경 / 아침 점검 세 파트로 나뉩니다.
+  */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .section-icon { font-size: 16px; }
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .section-time {
+    font-size: 11px;
+    color: var(--hint);
+    margin-left: auto;
+  }
+
+  /* ── 체크 아이템 ────────────────────────────────────────── */
+  .check-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: opacity 0.15s;
+  }
+  .check-item:last-child { border-bottom: none; }
+
+  /* 완료된 항목은 흐리게 */
+  .check-item.done { opacity: 0.45; }
+
+  .checkbox {
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    flex-shrink: 0;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    font-size: 12px;
+    color: #fff;
+    font-weight: 700;
+  }
+  .check-item.done .checkbox {
+    background: var(--amber);
+    border-color: var(--amber);
+  }
+
+  .check-text { font-size: 13px; line-height: 1.55; color: var(--text); }
+  .check-item.done .check-text {
+    text-decoration: line-through;
+    color: var(--hint);
+  }
+
+  /* 체크 아이템의 감각 유형 뱃지 */
+  .sense-badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-weight: 600;
+    margin-top: 3px;
+  }
+
+  /* ── 진행률 바 ──────────────────────────────────────────── */
+  .prog-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 18px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .prog-num {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--amber);
+    min-width: 54px;
+    line-height: 1;
+  }
+  .prog-right { flex: 1; }
+  .prog-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .prog-track {
+    height: 5px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .prog-fill {
+    height: 100%;
+    background: var(--amber);
+    border-radius: 3px;
+    transition: width 0.35s ease;
+  }
+
+  /* ── 완료 축하 패널 ─────────────────────────────────────── */
+  .complete-panel {
+    background: var(--green-bg);
+    border: 1px solid #89C94A;
+    border-radius: 14px;
+    padding: 20px 18px;
+    text-align: center;
+    margin-bottom: 10px;
+    display: none;
+  }
+  .complete-panel.visible { display: block; }
+  .complete-emoji { font-size: 32px; margin-bottom: 8px; display: block; }
+  .complete-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--green);
+    margin-bottom: 4px;
+  }
+  .complete-desc {
+    font-size: 13px;
+    color: var(--teal);
+    line-height: 1.6;
+  }
+
+  /* ── 알림 박스 ──────────────────────────────────────────── */
+  .notice {
+    background: var(--amber-lt);
+    border: 1px solid #F0C060;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--amber-dk);
+    line-height: 1.65;
+  }
+
+  /* ── 화면 전환 (step 기반) ──────────────────────────────── */
+  .screen { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; } }
+
+  /* ── 공통 하단 네비게이션 바 ───────────────────────────────── */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 60px;
+    background: #fff;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: stretch;
+    z-index: 50;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .nav-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: var(--hint);
+    font-size: 11px;
+    font-weight: 500;
+    gap: 4px;
+    transition: color 0.15s, background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nav-tab:hover  { background: var(--surface); }
+  .nav-tab.active { color: var(--amber); }
+  .tab-icon  { font-size: 18px; line-height: 1; }
+  .tab-label { font-size: 11px; line-height: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="app"></div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────────────────
+// 체크리스트 데이터
+//
+// 21일 루틴은 3단계로 나뉩니다.
+//   1~7일:   기초 환경 구축 — 가장 효과가 빠른 시각·온열 채널부터 시작
+//   8~14일:  감각 레이어 추가 — 후각·청각을 겹쳐 시너지 형성
+//   15~21일: 루틴 자동화 — 모든 채널이 조화를 이루고 습관으로 정착
+//
+// 각 항목은 감각 채널(sense), 실천 텍스트(text),
+// 논문 근거 약칭(ref), 비용 수준(cost)을 포함합니다.
+// ──────────────────────────────────────────────────────────────
+
+const PHASES = [
+  { label: "1주차 · 환경 기초",   days: [1,2,3,4,5,6,7] },
+  { label: "2주차 · 감각 레이어", days: [8,9,10,11,12,13,14] },
+  { label: "3주차 · 루틴 완성",   days: [15,16,17,18,19,20,21] },
+];
+
+// 감각 채널별 색상 정의
+const SENSE_COLORS = {
+  "시각": { bg: "#FAEEDA", tc: "#BA7517" },
+  "온열": { bg: "#FAECE7", tc: "#993C1D" },
+  "후각": { bg: "#EEEDFE", tc: "#534AB7" },
+  "청각": { bg: "#E1F5EE", tc: "#0F6E56" },
+  "인지": { bg: "#F3F1EC", tc: "#6B6860" },
+};
+
+// 저녁 루틴 체크리스트 — 취침 전 2시간 동안의 실천 항목
+// 1주차는 시각+온열 중심, 2주차부터 후각+청각 추가, 3주차는 전체 통합
+const EVENING_ITEMS = [
+  // ── 1주차부터 적용 ──
+  {
+    id: "ev1",
+    text: "스마트폰·태블릿을 침대에서 치웁니다",
+    sense: "시각", ref: "Chang et al., PNAS 2015",
+    from: 1,   // 몇 주차부터 등장하는지
+  },
+  {
+    id: "ev2",
+    text: "조명을 2,700K 이하 따뜻한 색으로 바꿉니다",
+    sense: "시각", ref: "Gooley et al., JCEM 2011",
+    from: 1,
+  },
+  {
+    id: "ev3",
+    text: "침실 온도를 18–21°C로 맞춥니다",
+    sense: "온열", ref: "Okamoto-Mizuno, 2012",
+    from: 1,
+  },
+  {
+    id: "ev4",
+    text: "취침 90분 전 40–42°C 샤워를 10분 이상 합니다",
+    sense: "온열", ref: "Haghayegh et al., 2019",
+    from: 1,
+  },
+  // ── 2주차부터 추가 ──
+  {
+    id: "ev5",
+    text: "라벤더 디퓨저를 취침 15–30분 전 작동합니다",
+    sense: "후각", ref: "Chien et al., ECAM 2012",
+    from: 2,
+  },
+  {
+    id: "ev6",
+    text: "60–80BPM 진정 음악을 재생합니다",
+    sense: "청각", ref: "Jespersen et al., Cochrane 2022",
+    from: 2,
+  },
+  // ── 3주차부터 추가 ──
+  {
+    id: "ev7",
+    text: "내일 걱정거리를 종이에 3줄로 적고 덮습니다 (인지 셧다운)",
+    sense: "인지", ref: null,
+    from: 3,
+  },
+];
+
+// 수면 환경 체크리스트 — 침대에 눕기 직전 마지막 점검
+const SLEEP_ITEMS = [
+  {
+    id: "sl1",
+    text: "차광 커튼을 치거나 수면 안대를 씁니다 (3lux 미만 유지)",
+    sense: "시각", ref: "Cho et al., 2018",
+    from: 1,
+  },
+  {
+    id: "sl2",
+    text: "자연음(빗소리·수류음) 또는 백색소음을 재생합니다",
+    sense: "청각", ref: "Buxton et al., PNAS 2021",
+    from: 1,
+  },
+  {
+    id: "sl3",
+    text: "가중담요를 덮거나 편안한 침구 상태를 확인합니다",
+    sense: "온열", ref: "Ekholm et al., JCSM 2020",
+    from: 2,
+  },
+  {
+    id: "sl4",
+    text: "타이머를 설정해 소리가 30분 후 꺼지도록 합니다",
+    sense: "청각", ref: null,
+    from: 2,
+  },
+  {
+    id: "sl5",
+    text: "침실 문틈의 빛이 새어 들지 않는지 확인합니다",
+    sense: "시각", ref: "Gooley et al., JCEM 2011",
+    from: 3,
+  },
+];
+
+// 아침 점검 — 다음 날 아침 1–2분의 간단한 자기 평가
+// 수면 일지 역할로, PDF의 인쇄 표와 연동됩니다
+const MORNING_ITEMS = [
+  {
+    id: "mo1",
+    text: "어젯밤 잠드는 데 30분 이하로 걸렸나요?",
+    sense: "인지", ref: null,
+    from: 1,
+  },
+  {
+    id: "mo2",
+    text: "새벽에 깨지 않거나, 깨더라도 다시 쉽게 잠들었나요?",
+    sense: "인지", ref: null,
+    from: 1,
+  },
+  {
+    id: "mo3",
+    text: "아침에 일어났을 때 개운한 느낌이 있었나요?",
+    sense: "인지", ref: null,
+    from: 1,
+  },
+];
+
+// ──────────────────────────────────────────────────────────────
+// 앱 상태
+// ──────────────────────────────────────────────────────────────
+
+const state = {
+  step:       0,      // 0: 날짜 선택 화면 / 1: 체크리스트 화면
+  today:      null,   // 선택한 날짜 (1–21)
+  doneDays:   [],     // 이 세션에서 완료 처리한 날짜 목록
+  checks:     {},     // 체크 상태 — { itemId: true/false }
+};
+
+// ──────────────────────────────────────────────────────────────
+// 렌더링 헬퍼
+// ──────────────────────────────────────────────────────────────
+
+function render(html) {
+  document.getElementById("app").innerHTML =
+    `<div class="screen">${html}</div>`;
+}
+
+// 감각 뱃지 HTML — sense 이름에 따라 배경색을 다르게 적용
+function senseBadge(sense) {
+  if (!sense) return "";
+  const c = SENSE_COLORS[sense] || { bg: "#F3F1EC", tc: "#6B6860" };
+  return `<span class="sense-badge"
+    style="background:${c.bg};color:${c.tc}">${sense}</span>`;
+}
+
+// 논문 참조 태그 HTML
+function refTag(ref) {
+  return ref
+    ? `<div style="display:inline-block;font-size:10px;background:var(--teal-bg);
+         color:var(--teal);padding:2px 6px;border-radius:5px;margin-top:3px;
+         font-weight:500">📄 ${ref}</div>`
+    : "";
+}
+
+// ──────────────────────────────────────────────────────────────
+// 날짜 기반 항목 필터
+//
+// 항목의 `from` 값이 현재 날짜의 주차(1~3)와 같거나 작으면 표시합니다.
+// 예: from=2인 항목은 8일차(2주차)부터 보이기 시작합니다.
+// ──────────────────────────────────────────────────────────────
+function weekOf(day) {
+  return Math.ceil(day / 7); // 1–7→1주, 8–14→2주, 15–21→3주
+}
+
+function filteredItems(items, day) {
+  return items.filter(item => item.from <= weekOf(day));
+}
+
+// ──────────────────────────────────────────────────────────────
+// 화면 0: 날짜 선택
+// ──────────────────────────────────────────────────────────────
+
+function renderDatePicker() {
+  // 3단계 × 7일 구조로 달력 그리드를 만듭니다
+  const grid = PHASES.map(phase => {
+    const cells = phase.days.map(d => {
+      const isDone     = state.doneDays.includes(d);
+      const isSelected = state.today === d;
+      let cls = "day-cell";
+      if (isDone)     cls += " done";
+      if (isSelected) cls += " selected";
+
+      return `
+        <div class="${cls}" onclick="selectDay(${d})">
+          <div class="day-num">${d}</div>
+        </div>`;
+    }).join("");
+
+    return `
+      <div class="phase-label">${phase.label}</div>
+      <div class="calendar-grid">${cells}</div>`;
+  }).join("");
+
+  render(`
+    <span class="badge badge-amber">Sensa Sleep · 21일 루틴 트래커</span>
+    <h1>오늘 몇 일차인가요?</h1>
+    <p style="margin-bottom:20px">
+      PDF의 인쇄 표를 확인하고, 오늘의 날짜를 선택해 주세요.
+      완료 후에는 표에 스티커를 붙이거나 색칠하면 됩니다.
+    </p>
+
+    ${grid}
+
+    <div class="divider"></div>
+
+    <!-- 주차별 안내 -->
+    <div class="card" style="margin-bottom:8px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;color:var(--amber)">
+        1주차 (1–7일) · 환경 기초
+      </div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6">
+        시각 차단과 온열 의식부터 시작합니다. 가장 빠르게 수면 잠복기를
+        단축하는 두 채널입니다.
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:8px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;color:var(--purple)">
+        2주차 (8–14일) · 감각 레이어
+      </div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6">
+        후각(라벤더)과 청각(음악·자연음)을 추가합니다.
+        여러 감각을 동시에 조율할 때 초가산적 시너지가 발생합니다.
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:20px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;color:var(--teal)">
+        3주차 (15–21일) · 루틴 완성
+      </div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6">
+        인지 셧다운과 세밀한 환경 점검을 추가합니다.
+        이 단계에서 루틴이 의식적 노력 없이 자동화되기 시작합니다.
+      </div>
+    </div>
+
+    <button class="btn" id="startBtn"
+      onclick="goChecklist()"
+      ${state.today ? "" : "disabled"}>
+      ${state.today ? `${state.today}일차 체크리스트 시작 →` : "날짜를 먼저 선택해 주세요"}
+    </button>
+  `);
+}
+
+// ──────────────────────────────────────────────────────────────
+// 화면 1: 체크리스트
+// ──────────────────────────────────────────────────────────────
+
+function renderChecklist() {
+  const day  = state.today;
+  const week = weekOf(day);
+
+  // 오늘의 주차에 해당하는 항목만 필터링
+  const eveningItems = filteredItems(EVENING_ITEMS, day);
+  const sleepItems   = filteredItems(SLEEP_ITEMS, day);
+  const morningItems = filteredItems(MORNING_ITEMS, day);
+  const allItems     = [...eveningItems, ...sleepItems, ...morningItems];
+
+  // 완료 수와 전체 수 계산
+  const total = allItems.length;
+  const done  = allItems.filter(it => state.checks[it.id]).length;
+  const pct   = total ? Math.round(done / total * 100) : 0;
+  const allDone = done === total;
+
+  // 각 섹션의 체크 아이템 HTML을 만드는 헬퍼 함수
+  function itemsHTML(items) {
+    return items.map(it => {
+      const checked = state.checks[it.id];
+      return `
+        <div class="check-item ${checked ? "done" : ""}"
+             onclick="toggleCheck('${it.id}')">
+          <div class="checkbox">${checked ? "✓" : ""}</div>
+          <div>
+            <div class="check-text">${it.text}</div>
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+              ${senseBadge(it.sense)}
+              ${refTag(it.ref)}
+            </div>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  // 주차별 단계 메시지 — 독자가 지금 어떤 단계인지 알 수 있게 안내
+  const phaseMsg = [
+    null,
+    "1주차: 시각 차단과 온열 의식을 정착시키는 주간입니다.",
+    "2주차: 후각과 청각 채널을 추가해 감각 시너지를 형성하세요.",
+    "3주차: 모든 채널이 조화를 이룹니다. 루틴 자동화 단계입니다.",
+  ][week];
+
+  render(`
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                margin-bottom:4px">
+      <span class="badge badge-amber">21일 루틴 · ${day}일차</span>
+      <button onclick="goBack()"
+        style="background:none;border:none;font-size:13px;color:var(--muted);
+               cursor:pointer;padding:4px 0">← 날짜 변경</button>
+    </div>
+
+    <h1>${day}일차 오늘 밤 루틴</h1>
+    <p style="margin-bottom:20px">${phaseMsg}</p>
+
+    <!-- 진행률 표시 -->
+    <div class="prog-wrap">
+      <div class="prog-num">${pct}%</div>
+      <div class="prog-right">
+        <div class="prog-sub">완료 ${done} / 전체 ${total}개 항목</div>
+        <div class="prog-track">
+          <div class="prog-fill" style="width:${pct}%" id="progFill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 전체 완료 축하 패널 -->
+    <div class="complete-panel ${allDone ? "visible" : ""}" id="completePanel">
+      <span class="complete-emoji">🌙</span>
+      <div class="complete-title">오늘 ${day}일차 루틴 완료!</div>
+      <div class="complete-desc">
+        PDF의 ${day}일 칸을 색칠하거나 스티커를 붙여 기록을 남기세요.<br>
+        ${day < 21 ? `내일은 ${day + 1}일차입니다. 잘 자요.` : "21일을 모두 완성했습니다. 정말 잘 하셨어요."}
+      </div>
+    </div>
+
+    <!-- 섹션 1: 저녁 루틴 -->
+    <div class="card-white">
+      <div class="section-header">
+        <span class="section-icon">🌅</span>
+        <span class="section-title">저녁 루틴</span>
+        <span class="section-time">취침 90–30분 전</span>
+      </div>
+      ${itemsHTML(eveningItems)}
+    </div>
+
+    <!-- 섹션 2: 수면 환경 -->
+    <div class="card-white">
+      <div class="section-header">
+        <span class="section-icon">🌙</span>
+        <span class="section-title">수면 환경 점검</span>
+        <span class="section-time">침대에 눕기 직전</span>
+      </div>
+      ${itemsHTML(sleepItems)}
+    </div>
+
+    <!-- 섹션 3: 아침 점검 -->
+    <div class="card-white">
+      <div class="section-header">
+        <span class="section-icon">☀️</span>
+        <span class="section-title">아침 점검</span>
+        <span class="section-time">기상 후 2분</span>
+      </div>
+      <p style="font-size:12px;margin-bottom:10px">
+        어제 밤 수면의 질을 간단히 점검합니다.
+        답은 PDF의 수면 일지 칸에 기록해 두세요.
+      </p>
+      ${itemsHTML(morningItems)}
+    </div>
+
+    <!-- 연구 근거 안내 -->
+    <div class="notice" style="margin-top:14px">
+      오늘 실천한 항목들은 각 칸의 📄 태그에 표시된 연구들로 뒷받침됩니다.
+      21일 후 PDF의 수면 일지에서 수면 잠복기와 기상 시 개운함 점수가
+      어떻게 변했는지 비교해 보세요.
+    </div>
+
+    <!-- 완료 버튼 — 전체 완료 시 활성화 -->
+    <button class="btn ${allDone ? "" : "btn-ghost"}"
+            onclick="markDayDone()"
+            id="doneBtn">
+      ${allDone
+        ? `✓ ${day}일차 완료 — 기록에 남기기`
+        : `${total - done}개 항목이 남았습니다`}
+    </button>
+  `);
+}
+
+// ──────────────────────────────────────────────────────────────
+// 이벤트 핸들러
+// ──────────────────────────────────────────────────────────────
+
+// 날짜 선택 — 선택 즉시 버튼 텍스트 업데이트
+function selectDay(d) {
+  state.today  = d;
+  state.checks = {}; // 날짜가 바뀌면 체크 상태 초기화
+  renderDatePicker();
+}
+
+// 체크리스트 화면으로 이동
+function goChecklist() {
+  if (!state.today) return;
+  state.step = 1;
+  renderChecklist();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// 날짜 선택 화면으로 돌아가기
+function goBack() {
+  state.step = 0;
+  renderDatePicker();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// 체크 토글 — 상태를 바꾸고 체크리스트 전체를 재렌더합니다
+function toggleCheck(id) {
+  state.checks[id] = !state.checks[id];
+  renderChecklist();
+}
+
+// 날짜를 완료 목록에 추가 — 달력 그리드에 초록 체크 표시
+function markDayDone() {
+  const day = state.today;
+  if (day && !state.doneDays.includes(day)) {
+    state.doneDays.push(day);
+  }
+  // 날짜 선택 화면으로 돌아가서 완료된 날짜가 초록으로 표시되게 합니다
+  state.step  = 0;
+  state.today = null;
+  renderDatePicker();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// ──────────────────────────────────────────────────────────────
+// 초기 실행
+// ──────────────────────────────────────────────────────────────
+renderDatePicker();
+</script>
+
+<!-- ── 공통 하단 네비게이션 바 ─────────────────────────────── -->
+<nav class="bottom-nav">
+  <a href="index.html" class="nav-tab" data-page="index.html">
+    <span class="tab-icon">🔍</span>
+    <span class="tab-label">진단</span>
+  </a>
+  <a href="sound-player.html" class="nav-tab" data-page="sound-player.html">
+    <span class="tab-icon">🎧</span>
+    <span class="tab-label">소리</span>
+  </a>
+  <a href="tracker.html" class="nav-tab" data-page="tracker.html">
+    <span class="tab-icon">📋</span>
+    <span class="tab-label">21일</span>
+  </a>
+</nav>
+<script>
+(function () {
+  const page = location.pathname.split("/").pop() || "index.html";
+  document.querySelectorAll(".nav-tab").forEach(function (tab) {
+    if (tab.dataset.page === page) tab.classList.add("active");
+  });
+})();
+</script>
+</body>
+</html>
