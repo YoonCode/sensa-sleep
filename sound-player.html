@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sensa Sleep · 수면 사운드 플레이어</title>
+<style>
+  /* ── 기본 변수 (index.html과 동일한 디자인 시스템) ────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #FAFAF8;
+    --surface:   #F3F1EC;
+    --border:    #E2DFD8;
+    --text:      #1A1A18;
+    --muted:     #6B6860;
+    --hint:      #A09E98;
+    --amber:     #BA7517;
+    --amber-bg:  #FAEEDA;
+    --amber-lt:  #FDF5E8;
+    --teal:      #0F6E56;
+    --teal-bg:   #E1F5EE;
+    --purple:    #534AB7;
+    --purple-bg: #EEEDFE;
+    --coral:     #993C1D;
+    --coral-bg:  #FAECE7;
+  }
+
+  body {
+    font-family: -apple-system, "Apple SD Gothic Neo", "Pretendard", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    min-height: 100vh;
+  }
+
+  .wrap {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 40px 20px 100px;
+  }
+
+  /* ── 타이포그래피 ──────────────────────────────────────────── */
+  h1 { font-size: 22px; font-weight: 600; line-height: 1.35; margin-bottom: 8px; }
+  h2 { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+  p  { font-size: 14px; color: var(--muted); line-height: 1.7; }
+
+  /* ── 배지 ──────────────────────────────────────────────────── */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 3px 9px;
+    border-radius: 20px;
+    margin-bottom: 14px;
+    background: var(--amber-bg);
+    color: var(--amber);
+  }
+
+  /* ── 사운드 선택 카드 그리드 ───────────────────────────────── */
+  .sound-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 20px 0;
+  }
+
+  .sound-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    padding: 18px 16px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.1s;
+    text-align: center;
+    user-select: none;
+  }
+  .sound-card:hover  { border-color: var(--amber); }
+  .sound-card:active { transform: scale(0.97); }
+
+  /* 선택된 카드 스타일 */
+  .sound-card.selected {
+    background: var(--amber-lt);
+    border-color: var(--amber);
+  }
+
+  /* 재생 중 카드 펄스 애니메이션 */
+  .sound-card.playing {
+    border-color: var(--amber);
+    animation: pulse-border 2s ease-in-out infinite;
+  }
+  @keyframes pulse-border {
+    0%, 100% { border-color: var(--amber); }
+    50%       { border-color: #EF9F27; box-shadow: 0 0 0 3px rgba(186,117,23,0.12); }
+  }
+
+  .sound-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+    display: block;
+    /* 재생 중 아이콘 미세 흔들림 */
+    transition: transform 0.3s;
+  }
+  .sound-card.playing .sound-icon {
+    animation: sway 1.8s ease-in-out infinite;
+  }
+  @keyframes sway {
+    0%, 100% { transform: scale(1); }
+    50%       { transform: scale(1.08); }
+  }
+
+  .sound-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+  .sound-card.selected .sound-name,
+  .sound-card.playing  .sound-name { color: var(--amber); }
+
+  .sound-desc {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  /* ── 연구 근거 태그 ────────────────────────────────────────── */
+  .ref-tag {
+    display: inline-block;
+    font-size: 10px;
+    background: var(--teal-bg);
+    color: var(--teal);
+    padding: 2px 7px;
+    border-radius: 6px;
+    margin-top: 5px;
+    font-weight: 500;
+  }
+
+  /* ── 컨트롤 섹션 카드 ─────────────────────────────────────── */
+  .control-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 10px;
+  }
+
+  /* ── 타이머 선택 버튼 그룹 ────────────────────────────────── */
+  .timer-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .timer-btn {
+    flex: 1;
+    min-width: 60px;
+    padding: 8px 6px;
+    background: #fff;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .timer-btn:hover { border-color: var(--amber); color: var(--amber); }
+  .timer-btn.selected {
+    background: var(--amber-bg);
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  /* ── 볼륨 슬라이더 ────────────────────────────────────────── */
+  .vol-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+  }
+  .vol-icon { font-size: 16px; color: var(--muted); }
+  input[type=range] {
+    flex: 1;
+    accent-color: var(--amber);
+    cursor: pointer;
+    height: 4px;
+  }
+  .vol-val {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--amber);
+    min-width: 30px;
+    text-align: right;
+  }
+
+  /* ── 재생/정지 메인 버튼 ──────────────────────────────────── */
+  .play-btn {
+    width: 100%;
+    padding: 16px;
+    background: var(--amber);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    margin-top: 6px;
+    letter-spacing: 0.02em;
+  }
+  .play-btn:hover  { opacity: 0.88; }
+  .play-btn:active { transform: scale(0.98); }
+  .play-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    transform: none;
+  }
+  /* 재생 중일 때 버튼 색상 변경 */
+  .play-btn.is-playing {
+    background: #5F5E5A; /* 정지 버튼은 그레이 */
+  }
+
+  /* ── 재생 중 상태 표시 패널 ───────────────────────────────── */
+  .now-playing {
+    background: var(--amber-lt);
+    border: 1px solid #F0C060;
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 10px;
+    display: none; /* JS로 표시 */
+  }
+  .now-playing.visible { display: block; }
+
+  .now-playing-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .now-playing-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--amber);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .timer-display {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--amber);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.03em;
+  }
+  .timer-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+  }
+
+  /* ── 웨이브 시각화 (CSS only) ─────────────────────────────── */
+  .wave-viz {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 28px;
+    margin: 6px 0 0;
+  }
+  .wave-bar {
+    width: 3px;
+    background: var(--amber);
+    border-radius: 2px;
+    opacity: 0.6;
+    animation: none;
+    height: 4px;
+    transition: height 0.2s;
+  }
+  /* 재생 중일 때만 애니메이션 작동 */
+  .wave-viz.active .wave-bar { animation: wave 1.2s ease-in-out infinite; }
+  .wave-viz.active .wave-bar:nth-child(1)  { animation-delay: 0s;     animation-duration: 0.9s; }
+  .wave-viz.active .wave-bar:nth-child(2)  { animation-delay: 0.1s;   animation-duration: 1.1s; }
+  .wave-viz.active .wave-bar:nth-child(3)  { animation-delay: 0.2s;   animation-duration: 0.8s; }
+  .wave-viz.active .wave-bar:nth-child(4)  { animation-delay: 0.05s;  animation-duration: 1.3s; }
+  .wave-viz.active .wave-bar:nth-child(5)  { animation-delay: 0.15s;  animation-duration: 1.0s; }
+  .wave-viz.active .wave-bar:nth-child(6)  { animation-delay: 0.25s;  animation-duration: 0.85s;}
+  .wave-viz.active .wave-bar:nth-child(7)  { animation-delay: 0.08s;  animation-duration: 1.2s; }
+  .wave-viz.active .wave-bar:nth-child(8)  { animation-delay: 0.18s;  animation-duration: 0.95s;}
+  .wave-viz.active .wave-bar:nth-child(9)  { animation-delay: 0.12s;  animation-duration: 1.15s;}
+  .wave-viz.active .wave-bar:nth-child(10) { animation-delay: 0.22s;  animation-duration: 0.88s;}
+  .wave-viz.active .wave-bar:nth-child(11) { animation-delay: 0.03s;  animation-duration: 1.05s;}
+  .wave-viz.active .wave-bar:nth-child(12) { animation-delay: 0.3s;   animation-duration: 0.92s;}
+
+  @keyframes wave {
+    0%, 100% { height: 4px;  opacity: 0.4; }
+    50%       { height: 22px; opacity: 0.85; }
+  }
+
+  /* ── 연구 근거 설명 섹션 ──────────────────────────────────── */
+  .info-section { margin-top: 24px; }
+  .info-item {
+    border-left: 2px solid var(--border);
+    padding: 8px 0 8px 14px;
+    margin-bottom: 12px;
+  }
+  .info-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+  .info-body {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .info-body .ref {
+    display: inline-block;
+    background: var(--teal-bg);
+    color: var(--teal);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 5px;
+    margin-top: 3px;
+    font-weight: 500;
+  }
+
+  /* ── 완료 알림 오버레이 ───────────────────────────────────── */
+  .toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #1A1A18;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 100;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ── 페이드인 ─────────────────────────────────────────────── */
+  .fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  /* ── 공통 하단 네비게이션 바 ───────────────────────────────── */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 60px;
+    background: #fff;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: stretch;
+    z-index: 50;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .nav-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: var(--hint);
+    font-size: 11px;
+    font-weight: 500;
+    gap: 4px;
+    transition: color 0.15s, background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nav-tab:hover  { background: var(--surface); }
+  .nav-tab.active { color: var(--amber); }
+  .tab-icon  { font-size: 18px; line-height: 1; }
+  .tab-label { font-size: 11px; line-height: 1; }
+</style>
+</head>
+<body>
+<div class="wrap fade-in">
+
+  <!-- 헤더 -->
+  <span class="badge">Sensa Sleep · 사운드 플레이어</span>
+  <h1>수면 사운드를 재생합니다</h1>
+  <p style="margin-bottom:4px">소리는 취침 시 자동으로 꺼지도록 타이머를 설정하세요.
+    이어폰보다 스피커 사용을 권장합니다.</p>
+
+  <!-- ── 사운드 선택 ── -->
+  <div class="sound-grid" id="soundGrid">
+
+    <div class="sound-card" id="card-rain" onclick="selectSound('rain')">
+      <span class="sound-icon">🌧</span>
+      <div class="sound-name">빗소리</div>
+      <div class="sound-desc">자연음 · 부교감신경 활성</div>
+      <div class="ref-tag">Buxton et al., PNAS 2021</div>
+    </div>
+
+    <div class="sound-card" id="card-white" onclick="selectSound('white')">
+      <span class="sound-icon">〰️</span>
+      <div class="sound-name">백색소음</div>
+      <div class="sound-desc">환경 소음 마스킹 · 입면 단축</div>
+      <div class="ref-tag">Messineo et al., 2017</div>
+    </div>
+
+    <div class="sound-card" id="card-pink" onclick="selectSound('pink')">
+      <span class="sound-icon">🌸</span>
+      <div class="sound-name">핑크소음</div>
+      <div class="sound-desc">서파수면 강화 · 기억 공고화</div>
+      <div class="ref-tag">Ngo et al., Neuron 2013</div>
+    </div>
+
+    <div class="sound-card" id="card-brown" onclick="selectSound('brown')">
+      <span class="sound-icon">🌊</span>
+      <div class="sound-name">브라운소음</div>
+      <div class="sound-desc">깊고 묵직한 저주파 · 이완</div>
+      <div class="ref-tag">Zhou et al., 2012</div>
+    </div>
+
+  </div>
+
+  <!-- ── 재생 중 상태 패널 (재생 시 노출) ── -->
+  <div class="now-playing" id="nowPlaying">
+    <div class="now-playing-header">
+      <span class="now-playing-label" id="playingLabel">재생 중</span>
+      <div style="text-align:right">
+        <div class="timer-display" id="timerDisplay">--:--</div>
+        <div class="timer-label" id="timerLabel">남은 시간</div>
+      </div>
+    </div>
+    <!-- CSS 웨이브 시각화 -->
+    <div class="wave-viz" id="waveViz">
+      <div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div><div class="wave-bar"></div>
+    </div>
+  </div>
+
+  <!-- ── 타이머 선택 ── -->
+  <div class="control-card">
+    <h2>타이머</h2>
+    <div class="timer-group" id="timerGroup">
+      <button class="timer-btn" data-min="15"  onclick="selectTimer(15)">15분</button>
+      <button class="timer-btn selected" data-min="30" onclick="selectTimer(30)">30분</button>
+      <button class="timer-btn" data-min="60"  onclick="selectTimer(60)">60분</button>
+      <button class="timer-btn" data-min="0"   onclick="selectTimer(0)">계속</button>
+    </div>
+  </div>
+
+  <!-- ── 볼륨 조절 ── -->
+  <div class="control-card">
+    <h2>볼륨</h2>
+    <div class="vol-row">
+      <span class="vol-icon">🔈</span>
+      <input type="range" id="volSlider" min="0" max="100" step="1" value="60"
+             oninput="updateVolume(this.value)">
+      <span class="vol-val" id="volVal">60%</span>
+      <span class="vol-icon">🔊</span>
+    </div>
+  </div>
+
+  <!-- ── 재생 / 정지 버튼 ── -->
+  <button class="play-btn" id="playBtn" onclick="togglePlay()" disabled>
+    소리 유형을 먼저 선택해 주세요
+  </button>
+
+  <!-- ── 연구 근거 설명 ── -->
+  <div class="info-section">
+    <div style="height:1px;background:var(--border);margin:28px 0 20px"></div>
+    <h2 style="font-size:14px;color:var(--muted);margin-bottom:14px">
+      각 소음이 수면에 작용하는 방식
+    </h2>
+
+    <div class="info-item">
+      <div class="info-title">🌧 빗소리 — 주의를 외부로 전환</div>
+      <div class="info-body">
+        빗소리 같은 자연음은 뇌의 주의 방향을 내부(생각, 걱정)에서
+        외부 자극으로 전환시킵니다. fMRI 연구에서 자연음이 디폴트 모드
+        네트워크 활동을 감소시키고 부교감신경 활성을 높이는 것이
+        확인되었습니다.
+        <br><span class="ref">Gould van Praag et al., Sci. Reports 2017</span>
+      </div>
+    </div>
+
+    <div class="info-item">
+      <div class="info-title">〰️ 백색소음 — 소음 마스킹</div>
+      <div class="info-body">
+        모든 주파수를 균등하게 포함한 소음으로, 주변의 갑작스러운 소리
+        변화를 가려줍니다. 수면 잠복기를 평균 38% 단축하는 효과가
+        무작위 대조시험(RCT)에서 확인됐습니다.
+        <br><span class="ref">Messineo et al., Front. Neurol. 2017</span>
+      </div>
+    </div>
+
+    <div class="info-item">
+      <div class="info-title">🌸 핑크소음 — 서파수면 강화</div>
+      <div class="info-body">
+        저주파로 갈수록 에너지가 높아지는 1/f 구조의 소음입니다. NREM
+        수면 중 뇌의 서파진동과 위상이 동기화되어 깊은 수면 비율을
+        높이고, 다음 날 기억력과 집중력을 향상시킵니다.
+        <br><span class="ref">Ngo et al., Neuron 2013 · Papalambros et al., 2017</span>
+      </div>
+    </div>
+
+    <div class="info-item">
+      <div class="info-title">🌊 브라운소음 — 깊은 이완</div>
+      <div class="info-body">
+        핑크소음보다 더 낮은 주파수 중심의 소음으로, 파도 소리나
+        폭포처럼 깊고 묵직하게 들립니다. 높은 각성 상태를 빠르게
+        낮춰주는 데 효과적이며, 특히 생각이 많을 때 유용합니다.
+        <br><span class="ref">Zhou et al., J Theor Biol 2012</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 타이머 종료 토스트 메시지 -->
+<div class="toast" id="toast">🌙 타이머가 종료되었습니다. 잘 자요.</div>
+
+<script>
+// ──────────────────────────────────────────────────────────────
+// 상태 관리
+// ──────────────────────────────────────────────────────────────
+const state = {
+  selectedSound:  null,   // 'rain' | 'white' | 'pink' | 'brown'
+  selectedTimer:  30,     // 분 단위, 0 = 무제한
+  volume:         0.6,    // 0.0 ~ 1.0
+  isPlaying:      false,
+
+  // Web Audio API 관련 노드들 — 정지 시 해제
+  audioCtx:       null,
+  sourceNode:     null,   // 노이즈 소스 (또는 복수의 소스)
+  gainNode:       null,   // 마스터 볼륨
+
+  // 타이머 관련
+  timerInterval:  null,   // setInterval 핸들
+  timerRemaining: 0,      // 남은 초
+};
+
+// ──────────────────────────────────────────────────────────────
+// 소음 버퍼 생성 함수들
+// 각각 2초짜리 AudioBuffer를 만들고, 이를 루프로 재생합니다.
+// ──────────────────────────────────────────────────────────────
+
+// 백색소음: 모든 샘플을 완전 무작위 값으로 채웁니다.
+function buildWhiteBuffer(ctx) {
+  const len = ctx.sampleRate * 2;
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d   = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    d[i] = Math.random() * 2 - 1;
+  }
+  return buf;
+}
+
+// 핑크소음: Paul Kellett 알고리즘 — 저주파 에너지를 높이는 IIR 필터 방식
+// b0~b6는 각각 다른 주파수 대역의 누적값입니다.
+function buildPinkBuffer(ctx) {
+  const len = ctx.sampleRate * 2;
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d   = buf.getChannelData(0);
+  let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+  for (let i = 0; i < len; i++) {
+    const w = Math.random() * 2 - 1;
+    b0 =  0.99886 * b0 + w * 0.0555179;
+    b1 =  0.99332 * b1 + w * 0.0750759;
+    b2 =  0.96900 * b2 + w * 0.1538520;
+    b3 =  0.86650 * b3 + w * 0.3104856;
+    b4 =  0.55000 * b4 + w * 0.5329522;
+    b5 = -0.76160 * b5 - w * 0.0168980;
+    d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) / 9;
+    b6 = w * 0.115926;
+  }
+  return buf;
+}
+
+// 브라운소음(레드소음): 백색소음을 적분(누적합)하는 방식으로 생성합니다.
+// lastOut이 이전 샘플을 기억하고, 다음 샘플에 조금씩 더해 저주파를 강조합니다.
+function buildBrownBuffer(ctx) {
+  const len = ctx.sampleRate * 2;
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d   = buf.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < len; i++) {
+    const w = Math.random() * 2 - 1;
+    d[i] = (last + 0.02 * w) / 1.02;
+    last = d[i];
+    d[i] *= 3.5; // 볼륨 보정 — 브라운은 진폭이 작아서 키워줍니다
+  }
+  return buf;
+}
+
+// 빗소리: 여러 층의 필터링된 노이즈를 합성합니다.
+// 1) 핑크노이즈 기반 베이스 레이어 (넓은 스프레이 느낌)
+// 2) 고주파 화이트노이즈 레이어 (빗방울 맺힘 소리)
+// 두 채널을 합산해 빗소리 질감을 만듭니다.
+function buildRainNodes(ctx) {
+  // 레이어 1: 핑크노이즈 소스 → 대역통과 필터 (저-중음역, 빗소리 베이스)
+  const pinkBuf  = buildPinkBuffer(ctx);
+  const pinkSrc  = ctx.createBufferSource();
+  pinkSrc.buffer = pinkBuf;
+  pinkSrc.loop   = true;
+
+  const bpf1 = ctx.createBiquadFilter();
+  bpf1.type            = "bandpass";
+  bpf1.frequency.value = 600;   // 중심 주파수 600Hz
+  bpf1.Q.value         = 0.5;   // 넓은 Q → 부드러운 대역 통과
+
+  const gain1 = ctx.createGain();
+  gain1.gain.value = 0.8;
+
+  pinkSrc.connect(bpf1);
+  bpf1.connect(gain1);
+
+  // 레이어 2: 백색노이즈 소스 → 고역통과 필터 (고음역, 빗방울 소리)
+  const whiteBuf  = buildWhiteBuffer(ctx);
+  const whiteSrc  = ctx.createBufferSource();
+  whiteSrc.buffer = whiteBuf;
+  whiteSrc.loop   = true;
+
+  const hpf = ctx.createBiquadFilter();
+  hpf.type            = "highpass";
+  hpf.frequency.value = 2000;  // 2kHz 이상만 통과
+
+  const gain2 = ctx.createGain();
+  gain2.gain.value = 0.25; // 빗방울 레이어는 더 작게
+
+  whiteSrc.connect(hpf);
+  hpf.connect(gain2);
+
+  // 두 레이어를 합산 노드로 연결 — 반환값은 배열
+  return { sources: [pinkSrc, whiteSrc], outputs: [gain1, gain2] };
+}
+
+// ──────────────────────────────────────────────────────────────
+// 재생 / 정지 로직
+// ──────────────────────────────────────────────────────────────
+
+function startAudio() {
+  // iOS / 구형 브라우저 호환성을 위해 webkitAudioContext도 확인
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) {
+    alert("이 브라우저는 Web Audio API를 지원하지 않습니다.\nChrome이나 Safari 최신 버전을 사용해 주세요.");
+    return;
+  }
+
+  state.audioCtx  = new AudioCtx();
+  state.gainNode  = state.audioCtx.createGain();
+  state.gainNode.gain.value = state.volume;
+  state.gainNode.connect(state.audioCtx.destination);
+
+  if (state.selectedSound === 'rain') {
+    // 빗소리는 복수의 소스 노드를 사용
+    const rain = buildRainNodes(state.audioCtx);
+    state.sourceNode = rain.sources; // 배열로 저장
+    rain.outputs.forEach(out => out.connect(state.gainNode));
+    rain.sources.forEach(src => src.start(0));
+
+  } else {
+    // 단일 노이즈 소스 — 유형에 맞는 버퍼 생성
+    let buffer;
+    if      (state.selectedSound === 'white') buffer = buildWhiteBuffer(state.audioCtx);
+    else if (state.selectedSound === 'pink')  buffer = buildPinkBuffer(state.audioCtx);
+    else if (state.selectedSound === 'brown') buffer = buildBrownBuffer(state.audioCtx);
+
+    const src  = state.audioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.loop   = true;
+    src.connect(state.gainNode);
+    src.start(0);
+    state.sourceNode = src;
+  }
+}
+
+function stopAudio() {
+  if (!state.audioCtx) return;
+
+  // 배열이면 빗소리 (복수 소스), 아니면 단일 소스
+  if (Array.isArray(state.sourceNode)) {
+    state.sourceNode.forEach(src => { try { src.stop(); } catch(e){} });
+  } else if (state.sourceNode) {
+    try { state.sourceNode.stop(); } catch(e){}
+  }
+
+  // AudioContext 닫기 — 리소스 해제
+  state.audioCtx.close();
+  state.audioCtx  = null;
+  state.sourceNode = null;
+  state.gainNode   = null;
+}
+
+// ──────────────────────────────────────────────────────────────
+// 타이머 로직
+// ──────────────────────────────────────────────────────────────
+
+function startTimer() {
+  // 무제한(0)이면 타이머를 시작하지 않고 "계속 재생" 표시
+  if (state.selectedTimer === 0) {
+    document.getElementById("timerDisplay").textContent = "∞";
+    document.getElementById("timerLabel").textContent   = "계속 재생";
+    return;
+  }
+
+  state.timerRemaining = state.selectedTimer * 60; // 초 단위로 변환
+  updateTimerDisplay();
+
+  state.timerInterval = setInterval(() => {
+    state.timerRemaining--;
+    updateTimerDisplay();
+
+    // 타이머 종료 처리
+    if (state.timerRemaining <= 0) {
+      clearInterval(state.timerInterval);
+      stopPlayback();
+      showToast();
+    }
+  }, 1000);
+}
+
+function stopTimer() {
+  if (state.timerInterval) {
+    clearInterval(state.timerInterval);
+    state.timerInterval = null;
+  }
+}
+
+// 남은 시간을 MM:SS 형식으로 포맷해 화면에 표시
+function updateTimerDisplay() {
+  const m = Math.floor(state.timerRemaining / 60);
+  const s = state.timerRemaining % 60;
+  const display = document.getElementById("timerDisplay");
+  if (display) {
+    display.textContent =
+      String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// 재생 토글 (재생 / 정지 통합 함수)
+// ──────────────────────────────────────────────────────────────
+
+function togglePlay() {
+  if (state.isPlaying) {
+    stopPlayback();
+  } else {
+    startPlayback();
+  }
+}
+
+function startPlayback() {
+  startAudio();
+  startTimer();
+  state.isPlaying = true;
+  updateUI();
+}
+
+function stopPlayback() {
+  stopAudio();
+  stopTimer();
+  state.isPlaying = false;
+  updateUI();
+}
+
+// ──────────────────────────────────────────────────────────────
+// UI 업데이트 함수
+// ──────────────────────────────────────────────────────────────
+
+function updateUI() {
+  const playBtn   = document.getElementById("playBtn");
+  const nowPlay   = document.getElementById("nowPlaying");
+  const waveViz   = document.getElementById("waveViz");
+  const playLabel = document.getElementById("playingLabel");
+  const soundCard = state.selectedSound
+                    ? document.getElementById(`card-${state.selectedSound}`)
+                    : null;
+
+  // 모든 카드에서 playing 클래스 제거 후, 현재 재생 카드에만 추가
+  document.querySelectorAll(".sound-card").forEach(c => c.classList.remove("playing"));
+
+  if (state.isPlaying) {
+    // 재생 중 UI
+    playBtn.textContent = "⏹ 정지";
+    playBtn.classList.add("is-playing");
+    nowPlay.classList.add("visible");
+    waveViz.classList.add("active");
+    if (soundCard) soundCard.classList.add("playing");
+
+    // 재생 중인 소음 이름을 상태 패널에 표시
+    const names = { rain:"빗소리", white:"백색소음", pink:"핑크소음", brown:"브라운소음" };
+    playLabel.textContent = `재생 중 · ${names[state.selectedSound]}`;
+
+  } else {
+    // 정지 UI
+    playBtn.textContent = "▶ 재생 시작";
+    playBtn.classList.remove("is-playing");
+    nowPlay.classList.remove("visible");
+    waveViz.classList.remove("active");
+    // timerDisplay 초기화
+    document.getElementById("timerDisplay").textContent = "--:--";
+    document.getElementById("timerLabel").textContent   = "남은 시간";
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// 이벤트 핸들러 — 선택 및 조절
+// ──────────────────────────────────────────────────────────────
+
+function selectSound(id) {
+  // 재생 중이면 먼저 정지
+  if (state.isPlaying) stopPlayback();
+
+  state.selectedSound = id;
+
+  // 카드 선택 스타일 적용
+  document.querySelectorAll(".sound-card").forEach(c => c.classList.remove("selected"));
+  document.getElementById(`card-${id}`).classList.add("selected");
+
+  // 재생 버튼 활성화
+  const btn = document.getElementById("playBtn");
+  btn.disabled    = false;
+  btn.textContent = "▶ 재생 시작";
+  btn.classList.remove("is-playing");
+}
+
+function selectTimer(min) {
+  // 재생 중이면 타이머만 변경하고 재시작
+  if (state.isPlaying) {
+    stopTimer();
+    state.selectedTimer = min;
+    startTimer();
+  } else {
+    state.selectedTimer = min;
+  }
+
+  // 타이머 버튼 선택 스타일
+  document.querySelectorAll(".timer-btn").forEach(b => b.classList.remove("selected"));
+  document.querySelector(`[data-min="${min}"]`).classList.add("selected");
+}
+
+function updateVolume(val) {
+  state.volume = parseInt(val) / 100;
+  document.getElementById("volVal").textContent = `${val}%`;
+
+  // 재생 중이면 gainNode를 실시간으로 조절
+  if (state.gainNode) {
+    state.gainNode.gain.value = state.volume;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// 토스트 알림
+// ──────────────────────────────────────────────────────────────
+
+function showToast() {
+  const toast = document.getElementById("toast");
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 3500);
+}
+
+// ──────────────────────────────────────────────────────────────
+// 페이지 가시성 변화 처리
+// 사용자가 화면을 끄거나 앱을 전환해도 오디오는 계속 재생됩니다.
+// (브라우저 탭이 백그라운드로 가도 Web Audio API는 계속 작동)
+// 다만 화면이 완전히 닫히면 자동 정지됩니다.
+// ──────────────────────────────────────────────────────────────
+document.addEventListener("visibilitychange", () => {
+  // 백그라운드에서도 재생 유지 — 추가 처리 없음
+  // 필요 시 여기에 일시정지 로직 추가 가능
+});
+</script>
+
+<!-- ── 공통 하단 네비게이션 바 ─────────────────────────────── -->
+<nav class="bottom-nav">
+  <a href="index.html" class="nav-tab" data-page="index.html">
+    <span class="tab-icon">🔍</span>
+    <span class="tab-label">진단</span>
+  </a>
+  <a href="sound-player.html" class="nav-tab" data-page="sound-player.html">
+    <span class="tab-icon">🎧</span>
+    <span class="tab-label">소리</span>
+  </a>
+  <a href="tracker.html" class="nav-tab" data-page="tracker.html">
+    <span class="tab-icon">📋</span>
+    <span class="tab-label">21일</span>
+  </a>
+</nav>
+<script>
+(function () {
+  const page = location.pathname.split("/").pop() || "index.html";
+  document.querySelectorAll(".nav-tab").forEach(function (tab) {
+    if (tab.dataset.page === page) tab.classList.add("active");
+  });
+})();
+</script>
+</body>
+</html>
